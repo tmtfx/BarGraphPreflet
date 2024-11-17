@@ -48,7 +48,7 @@ public:
 		
         // Show Labels
         fShowLabelsButton = new BButton(BRect(10, 50, 200, 75), "ShowLabels", "Toggle Labels", new BMessage(TOGGLE_LABELS));
-
+		fResetBSButton = new BButton(BRect(200, 50, 290, 75), "resetBarSettings", "Reset bars", new BMessage(RESET_BARS));
         // Backlight
         fBacklightSlider = new BSlider(BRect(10, 100, 290, 125), "Backlight", "Backlight", new BMessage(CHANGE_BACKLIGHT), 0, 100);
         fBacklightSlider->SetValue(fConfig.brightness);
@@ -58,7 +58,8 @@ public:
         // Bar Settings
         fBarSettings = new BView(BRect(10, 200, 290, 445), "BarSettings", B_FOLLOW_LEFT | B_FOLLOW_TOP, B_WILL_DRAW);
 		fConfigLabelsButton = new BButton(BRect(10, 450, 290, 475), "configLabels", "Send labels configuration", new BMessage(CONFIGURE_LABELS));
-		fKillDaemonButton = new BButton(BRect(10, 480, 290, 505), "killDaemon", "Ask Daemon to Quit", new BMessage(REMOTE_QUIT_REQUEST));
+		fKillDaemonButton = new BButton(BRect(10, 490, 290, 515), "killDaemon", "Ask Daemon to Quit", new BMessage(REMOTE_QUIT_REQUEST));
+		fshutdownText = new BTextControl(BRect(10, 550, 290, 575), "shutdownText", "Shutdown Text:", "", nullptr);
         for (int i = 0; i < fConfig.numBars; i++) {
             BMenu* menu = new BMenu("Select Label");
             //const std::vector<std::string> options = {"1:", "2:", "3:", "4:", "M:", "F1", "F2", "F3", "F4"};
@@ -79,11 +80,13 @@ public:
         // Add everything to main view
         mainView->AddChild(fSerialPortControl);
         mainView->AddChild(fShowLabelsButton);
+		mainView->AddChild(fResetBSButton);
         mainView->AddChild(fBacklightSlider);
 		mainView->AddChild(fnumBarsSlider);
         mainView->AddChild(fBarSettings);
 		mainView->AddChild(fConfigLabelsButton);
 		mainView->AddChild(fKillDaemonButton);
+		mainView->AddChild(fshutdownText);
         AddChild(mainView);
     }
 	
@@ -97,6 +100,34 @@ public:
         fLabels.resize(newNumBars, "");  // Ridimensiona in base al nuovo numero di barre
     }
 	
+	void ResetBarSettings(){
+		for (int i = fBarSettings->CountChildren() - 1; i >= 0; --i) {
+			BMenuField* menuField = dynamic_cast<BMenuField*>(fBarSettings->ChildAt(i));
+			if (menuField) {
+				fBarSettings->RemoveChild(menuField);
+			}
+		}
+		fConfig.numBars = fnumBarsSlider->Value();
+		for (int i = 0; i < fConfig.numBars; i++) {
+			BMenu* menu = new BMenu("Select Label");
+			for (const auto& option : labeloptions) {
+				BMessage* msg = new BMessage(SET_LABEL);
+				msg->AddInt32("index",i);
+				msg->AddString("label",option.c_str());
+				BMenuItem* item = new BMenuItem(option.c_str(), msg);
+				menu->AddItem(item);
+			}
+			menu->SetLabelFromMarked(true);
+			std::string lbl = "Bar label "+std::to_string(i+1);
+			BMenuField* menuField = new BMenuField(BRect(10, 30 * i, 300, 30 * (i + 1)), nullptr, lbl.c_str(), menu);
+			fBarSettings->AddChild(menuField);
+		}
+
+		// Ridisegna la finestra
+		fBarSettings->Invalidate();
+		mainView->Invalidate();
+	}
+	
 	virtual void MessageReceived(BMessage* message) override {
 		switch (message->what) {
 			case UPDATE_NUM_BARS:
@@ -105,35 +136,7 @@ public:
 					if (newNumBars != fConfig.numBars) {
 						fConfig.numBars = newNumBars;
 						UpdateLabelsArray(newNumBars);
-						// Rimuovi vecchi menuField
-						for (int i = fBarSettings->CountChildren() - 1; i >= 0; --i) {
-							BMenuField* menuField = dynamic_cast<BMenuField*>(fBarSettings->ChildAt(i));
-							if (menuField) {
-								fBarSettings->RemoveChild(menuField);
-							}
-						}
-
-						// Aggiungi nuovi menuField
-						
-						for (int i = 0; i < fConfig.numBars; i++) {
-							BMenu* menu = new BMenu("Select Label");
-							for (const auto& option : labeloptions) {
-								BMessage* msg = new BMessage(SET_LABEL);
-								msg->AddInt32("index",i);
-								msg->AddString("label",option.c_str());
-								BMenuItem* item = new BMenuItem(option.c_str(), msg);
-								menu->AddItem(item);
-							}
-							menu->SetLabelFromMarked(true);
-							std::string lbl = "Bar label "+std::to_string(i+1);
-							BMenuField* menuField = new BMenuField(BRect(10, 30 * i, 300, 30 * (i + 1)), nullptr, lbl.c_str(), menu);
-							fBarSettings->AddChild(menuField);
-						}
-
-						// Ridisegna la finestra
-						fBarSettings->Invalidate();
-						mainView->Invalidate();
-						
+						ResetBarSettings();
 					}
 				}
 				break;
@@ -141,13 +144,13 @@ public:
 				{
 					int index = message->FindInt8("index");
 					std::string label = message->FindString("label");
-
 					if (index >= 0 && index < fLabels.size()) {
 						fLabels[index] = label;  // Aggiorna l'etichetta nella posizione corretta
 					}
 				}
 				break;
 			case REMOTE_QUIT_REQUEST:
+				message->AddString("text",fshutdownText->Text());
 				TransmitToDaemon(message);
 				break;
 			case TOGGLE_LABELS:
@@ -157,6 +160,9 @@ public:
 				//int val=fBacklightSlider->Value();
 				message->AddInt8("bright",fBacklightSlider->Value());
 				TransmitToDaemon(message);
+				break;
+			case RESET_BARS:
+				ResetBarSettings();
 				break;
 			default:
 				BWindow::MessageReceived(message);
@@ -175,10 +181,12 @@ private:
     BTextControl* fSerialPortControl;
     BButton* fShowLabelsButton;
     BButton* fConfigLabelsButton;
+	BButton* fResetBSButton;
 	BButton* fKillDaemonButton;
     BSlider* fBacklightSlider;
     BView* fBarSettings;
 	BSlider* fnumBarsSlider;
+	BTextControl* fshutdownText;
 	std::vector<std::string> fLabels;
 	
     static const uint32 TOGGLE_LABELS = 'SLAB';
@@ -187,6 +195,7 @@ private:
 	static const uint32 UPDATE_NUM_BARS = 'upnb';
 	static const uint32 CONFIGURE_LABELS = 'SCFG';
 	static const uint32 REMOTE_QUIT_REQUEST = '_RQR';
+	static const uint32 RESET_BARS = 'RSBR';
 };
 
 
