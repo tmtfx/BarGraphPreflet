@@ -45,7 +45,7 @@ public:
         mainView->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 
         // Serial Port
-        fSerialPortControl = new BTextControl(BRect(10, 10, 290, 30), "SerialPort", "Serial Port:", fConfig.serialPort.c_str(), nullptr);
+        fSerialPortControl = new BTextControl(BRect(10, 10, 290, 30), "SerialPort", "Serial Port:", fConfig.serialPort.c_str(), new BMessage(SERIAL_PATH));
 		
 		fLabels.resize(fConfig.numBars, "");
 		
@@ -146,9 +146,9 @@ public:
 			case SET_LABEL:
 				{
 					int index = message->FindInt8("index");
-					fprintf(stdout,"index è %d\n",index);
+					//fprintf(stdout,"index è %d\n",index);
 					std::string label = message->FindString("label");
-					fprintf(stdout,"la label è %s\n",label.c_str());
+					//fprintf(stdout,"la label è %s\n",label.c_str());
 					if (index >= 0 && index < fLabels.size()) {
 						fLabels[index] = label;  // Aggiorna l'etichetta nella posizione corretta
 					}
@@ -197,6 +197,11 @@ public:
 					}
 				} 
 				break;
+			case SERIAL_PATH:
+				{
+					message->AddString("path",fSerialPortControl->Text());
+					TransmitToDaemon(message);
+				}
 			default:
 				BWindow::MessageReceived(message);
 				break;
@@ -229,6 +234,7 @@ private:
 	static const uint32 CONFIGURE_LABELS = 'SCFG';
 	static const uint32 REMOTE_QUIT_REQUEST = '_RQR';
 	static const uint32 RESET_BARS = 'RSBR';
+	static const uint32 SERIAL_PATH = 'SPTH';
 };
 
 
