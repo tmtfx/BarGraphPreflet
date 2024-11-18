@@ -3,9 +3,6 @@
  * All rights reserved. Distributed under the terms of the MIT license.
  */
 
-// TODO: Pulse a ping every 3seconds to bargraph daemon to check if it is running
-// TODO: if the above is not running enable a Button to launch bargraph daemon
-
 #include <Application.h>
 #include <Looper.h>
 #include <Window.h>
@@ -58,6 +55,7 @@ public:
 		
         // Show Labels
         fShowLabelsButton = new BButton(BRect(10, 50, 200, 75), "ShowLabels", "Toggle Labels", new BMessage(TOGGLE_LABELS));
+		fShowLabelsButton->SetEnabled(false);
 		fResetBSButton = new BButton(BRect(200, 50, 290, 75), "resetBarSettings", "Reset bars", new BMessage(RESET_BARS));
         // Backlight
         fBacklightSlider = new BSlider(BRect(10, 100, 290, 125), "Backlight", "Backlight", new BMessage(CHANGE_BACKLIGHT), 0, 100);
@@ -67,8 +65,9 @@ public:
 		fnumBarsSlider->SetKeyIncrementValue(1);
         // Bar Settings
         fBarSettings = new BView(BRect(10, 200, 290, 445), "BarSettings", B_FOLLOW_LEFT | B_FOLLOW_TOP, B_WILL_DRAW);
-		fConfigLabelsButton = new BButton(BRect(10, 450, 290, 475), "configLabels", "Send labels configuration", new BMessage(CONFIGURE_LABELS));
-		fKillDaemonButton = new BButton(BRect(10, 490, 290, 515), "killDaemon", "Ask Daemon to Quit", new BMessage(REMOTE_QUIT_REQUEST));
+		fConfigLabelsButton = new BButton(BRect(10, 450, 290, 490), "configLabels", "Send labels configuration", new BMessage(CONFIGURE_LABELS));
+		fConfigLabelsButton->SetEnabled(false);
+		fKillDaemonButton = new BButton(BRect(10, 492, 290, 532), "killDaemon", "Ask Daemon to Quit", new BMessage(REMOTE_QUIT_REQUEST));
 		fKillDaemonButton->SetEnabled(false);
 		fshutdownText = new BTextControl(BRect(10, 550, 290, 575), "shutdownText", "Shutdown Text:", "", nullptr);
 		const char* lblstatus = "Daemon status: ";
@@ -78,6 +77,7 @@ public:
 		fdaemonStatus->SetHighColor(255,0,0,255);
 		fdaemonStatus->SetAlignment(B_ALIGN_RIGHT);
 		fLaunchDaemonButton = new BButton(BRect(10, 640, 290, 690), "launchDaemon", "Launch BarGraphDaemon", new BMessage(LAUNCH_DAEMON));
+		
         for (int i = 0; i < fConfig.numBars; i++) {
             BMenu* menu = new BMenu("Select Label");
             //const std::vector<std::string> options = {"1:", "2:", "3:", "4:", "M:", "F1", "F2", "F3", "F4"};
@@ -94,15 +94,6 @@ public:
             BMenuField* menuField = new BMenuField(BRect(10, 30 * i, 300, 30 * (i + 1)), nullptr, lbl.c_str(), menu);
             fBarSettings->AddChild(menuField);
         }
-		/*
-		fSerialPortControl->SetEnabled(false);
-		fBacklightSlider->SetEnabled(false);
-		fConfigLabelsButton->SetEnabled(false);
-		fShowLabelsButton->SetEnabled(false);
-		fResetBSButton->SetEnabled(false);
-		fnumBarsSlider->SetEnabled(false);
-		fBarSettings->Hide();
-		*/
 		
         // Add everything to main view
         mainView->AddChild(fSerialPortControl);
@@ -163,12 +154,13 @@ public:
 		switch (message->what) {
 			case UPDATE_NUM_BARS:
 				{
-					int32 newNumBars = fnumBarsSlider->Value();//message->FindInt32("value");  // Usa FindInt32 invece di FindInt8
+					int32 newNumBars = fnumBarsSlider->Value();//message->FindInt32("value");
 					if (newNumBars != fConfig.numBars) {
 						fConfig.numBars = newNumBars;
 						UpdateLabelsArray(newNumBars);
 						ResetBarSettings();
 					}
+					//fprintf(stdout,"new num bars: %d",newNumBars);
 				}
 				break;
 			case SET_LABEL:
@@ -239,45 +231,24 @@ public:
 						if (status) {
 							fdaemonStatus->SetText("Running!");
 							fKillDaemonButton->SetEnabled(true);
-							fLaunchDaemonButton->SetEnabled(false);
-							fdaemonStatus->SetHighColor(0,200,0,255);
-							/*
-							fSerialPortControl->SetEnabled(true);
-							fBacklightSlider->SetEnabled(true);
 							fConfigLabelsButton->SetEnabled(true);
 							fShowLabelsButton->SetEnabled(true);
-							fResetBSButton->SetEnabled(true);
-							fnumBarsSlider->SetEnabled(true);
-							fBarSettings->Show();
-							mainView->Invalidate();*/
+							fLaunchDaemonButton->SetEnabled(false);
+							fdaemonStatus->SetHighColor(0,200,0,255);
 						} else {
 							fdaemonStatus->SetText("Not running");
 							fKillDaemonButton->SetEnabled(false);
-							fLaunchDaemonButton->SetEnabled(true);
-							fdaemonStatus->SetHighColor(255,0,0,255);/*
-							fSerialPortControl->SetEnabled(false);
-							fBacklightSlider->SetEnabled(false);
 							fConfigLabelsButton->SetEnabled(false);
 							fShowLabelsButton->SetEnabled(false);
-							fResetBSButton->SetEnabled(false);
-							fnumBarsSlider->SetEnabled(false);
-							fBarSettings->Hide();
-							mainView->Invalidate();*/
+							fLaunchDaemonButton->SetEnabled(true);
+							fdaemonStatus->SetHighColor(255,0,0,255);
 						}
 						prevStat=status;
 					}
 				}
 				break;
-			/*case DAEMON_PING:
-				{
-					daemonStatus=true;
-					BMessage* msg = new BMessage(DAEMON_STATUS);
-					msg->AddBool("status",true);
-					be_app->WindowAt(0)->PostMessage(msg);
-				}
-				break;*/
 			case LAUNCH_DAEMON:
-				system("/boot/home/Documents/Progjets/bargraph/bargraph/BarGraphDaemon &");
+				system("/boot/home/Documents/Progjets/bargraphdaemon/BarGraphDaemon &");
 				break;
 			default:
 				BWindow::MessageReceived(message);
