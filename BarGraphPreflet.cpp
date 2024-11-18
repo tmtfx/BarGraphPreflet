@@ -94,7 +94,7 @@ public:
             BMenuField* menuField = new BMenuField(BRect(10, 30 * i, 300, 30 * (i + 1)), nullptr, lbl.c_str(), menu);
             fBarSettings->AddChild(menuField);
         }
-		
+		/*
 		fSerialPortControl->SetEnabled(false);
 		fBacklightSlider->SetEnabled(false);
 		fConfigLabelsButton->SetEnabled(false);
@@ -102,6 +102,7 @@ public:
 		fResetBSButton->SetEnabled(false);
 		fnumBarsSlider->SetEnabled(false);
 		fBarSettings->Hide();
+		*/
 		
         // Add everything to main view
         mainView->AddChild(fSerialPortControl);
@@ -198,6 +199,8 @@ public:
 				break;
 			case CONFIGURE_LABELS:
 				{
+					printf("numbars: %d\n",fConfig.numBars);
+					printf("fLabels size: %d",fLabels.size());
 					bool allLabelsAssigned = true;
 					for (int i = 0; i < fConfig.numBars; i++) {
 						if (fLabels[i].empty()) {
@@ -210,7 +213,6 @@ public:
 						for (const std::string& label : fLabels){
 							labelList.Add(BString(label.c_str()));
 						}
-					
 						message->AddInt8("numBars", fConfig.numBars);
 						message->AddStrings("labels",labelList);
 						/*for (int i = 0; i < fConfig.numBars; i++) {
@@ -222,7 +224,7 @@ public:
 						BAlert* alert = new BAlert("error","You must assign all labels first!", "OK", nullptr,nullptr,B_WIDTH_AS_USUAL,B_WARNING_ALERT);
 						alert->Go();
 					}
-				} 
+				}
 				break;
 			case SERIAL_PATH:
 				{
@@ -239,6 +241,7 @@ public:
 							fKillDaemonButton->SetEnabled(true);
 							fLaunchDaemonButton->SetEnabled(false);
 							fdaemonStatus->SetHighColor(0,200,0,255);
+							/*
 							fSerialPortControl->SetEnabled(true);
 							fBacklightSlider->SetEnabled(true);
 							fConfigLabelsButton->SetEnabled(true);
@@ -246,12 +249,12 @@ public:
 							fResetBSButton->SetEnabled(true);
 							fnumBarsSlider->SetEnabled(true);
 							fBarSettings->Show();
-							mainView->Invalidate();
+							mainView->Invalidate();*/
 						} else {
 							fdaemonStatus->SetText("Not running");
 							fKillDaemonButton->SetEnabled(false);
 							fLaunchDaemonButton->SetEnabled(true);
-							fdaemonStatus->SetHighColor(255,0,0,255);
+							fdaemonStatus->SetHighColor(255,0,0,255);/*
 							fSerialPortControl->SetEnabled(false);
 							fBacklightSlider->SetEnabled(false);
 							fConfigLabelsButton->SetEnabled(false);
@@ -259,7 +262,7 @@ public:
 							fResetBSButton->SetEnabled(false);
 							fnumBarsSlider->SetEnabled(false);
 							fBarSettings->Hide();
-							mainView->Invalidate();
+							mainView->Invalidate();*/
 						}
 						prevStat=status;
 					}
