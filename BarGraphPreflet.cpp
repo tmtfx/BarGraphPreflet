@@ -14,7 +14,10 @@
 #include <MenuField.h>
 #include <Message.h>
 #include <MenuItem.h>
+#include <String.h>
+#include <StringList.h>
 #include <InterfaceKit.h>
+#include <Alert.h>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -65,10 +68,10 @@ public:
             //const std::vector<std::string> options = {"1:", "2:", "3:", "4:", "M:", "F1", "F2", "F3", "F4"};
             for (const auto& option : labeloptions) {
 				BMessage* msg = new BMessage(SET_LABEL);
-				msg->AddInt32("index",i);
+				msg->AddInt8("index",i);
 				msg->AddString("label",option.c_str());
                 BMenuItem* item = new BMenuItem(option.c_str(), msg);
-                item->SetTarget(this);
+                //item->SetTarget(this);
                 menu->AddItem(item);
             }
 			menu->SetLabelFromMarked(true);
@@ -112,7 +115,7 @@ public:
 			BMenu* menu = new BMenu("Select Label");
 			for (const auto& option : labeloptions) {
 				BMessage* msg = new BMessage(SET_LABEL);
-				msg->AddInt32("index",i);
+				msg->AddInt8("index",i);
 				msg->AddString("label",option.c_str());
 				BMenuItem* item = new BMenuItem(option.c_str(), msg);
 				menu->AddItem(item);
@@ -143,7 +146,9 @@ public:
 			case SET_LABEL:
 				{
 					int index = message->FindInt8("index");
+					fprintf(stdout,"index è %d\n",index);
 					std::string label = message->FindString("label");
+					fprintf(stdout,"la label è %s\n",label.c_str());
 					if (index >= 0 && index < fLabels.size()) {
 						fLabels[index] = label;  // Aggiorna l'etichetta nella posizione corretta
 					}
@@ -163,6 +168,34 @@ public:
 				break;
 			case RESET_BARS:
 				ResetBarSettings();
+				break;
+			case CONFIGURE_LABELS:
+				{
+					bool allLabelsAssigned = true;
+					for (int i = 0; i < fConfig.numBars; i++) {
+						if (fLabels[i].empty()) {
+							allLabelsAssigned = false;
+							break;
+						}
+					}
+					if (allLabelsAssigned) {
+						BStringList labelList(fConfig.numBars);
+						for (const std::string& label : fLabels){
+							labelList.Add(BString(label.c_str()));
+						}
+					
+						message->AddInt8("numBars", fConfig.numBars);
+						message->AddStrings("labels",labelList);
+						/*for (int i = 0; i < fConfig.numBars; i++) {
+							std::string indexStr = std::to_string(i);
+							message->AddStrings(indexStr.c_str(), fLabels[i].c_str());
+						}*/
+						TransmitToDaemon(message);
+					} else {
+						BAlert* alert = new BAlert("error","You must assign all labels first!", "OK", nullptr,nullptr,B_WIDTH_AS_USUAL,B_WARNING_ALERT);
+						alert->Go();
+					}
+				} 
 				break;
 			default:
 				BWindow::MessageReceived(message);
