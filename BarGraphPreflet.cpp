@@ -3,6 +3,9 @@
  * All rights reserved. Distributed under the terms of the MIT license.
  */
 
+// TODO: Pulse a ping every 3seconds to bargraph daemon to check if it is running
+// TODO: if the above is not running enable a Button to launch bargraph daemon
+
 #include <Application.h>
 #include <Looper.h>
 #include <Window.h>
@@ -16,15 +19,19 @@
 #include <MenuItem.h>
 #include <String.h>
 #include <StringList.h>
+#include <StringView.h>
 #include <InterfaceKit.h>
 #include <Alert.h>
 #include <string>
 #include <vector>
 #include <fstream>
 #include <iostream>
+#include <cstdlib>
 
 const char* kApplicationSignature = "application/x-vnd.BarGraph-Preflet";
 const std::vector<std::string> labeloptions = {"1:", "2:", "3:", "4:", "5:", "6:", "7:", "8:", "M:", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"};
+bool daemonStatus = false;
+static const uint32 DAEMON_STATUS = 'DSTS';
 
 struct Config {
         std::string serialPort;
@@ -37,7 +44,7 @@ struct Config {
 class BarGraphPrefletWindow : public BWindow {
 public:
     BarGraphPrefletWindow(Config& config)
-        : BWindow(BRect(100, 100, 400, 700), "Bar Graph Settings", B_TITLED_WINDOW, B_NOT_RESIZABLE),
+        : BWindow(BRect(100, 100, 400, 800), "Bar Graph Settings", B_TITLED_WINDOW, B_NOT_RESIZABLE),
           fConfig(config)
     {
         // Layout
@@ -62,7 +69,15 @@ public:
         fBarSettings = new BView(BRect(10, 200, 290, 445), "BarSettings", B_FOLLOW_LEFT | B_FOLLOW_TOP, B_WILL_DRAW);
 		fConfigLabelsButton = new BButton(BRect(10, 450, 290, 475), "configLabels", "Send labels configuration", new BMessage(CONFIGURE_LABELS));
 		fKillDaemonButton = new BButton(BRect(10, 490, 290, 515), "killDaemon", "Ask Daemon to Quit", new BMessage(REMOTE_QUIT_REQUEST));
+		fKillDaemonButton->SetEnabled(false);
 		fshutdownText = new BTextControl(BRect(10, 550, 290, 575), "shutdownText", "Shutdown Text:", "", nullptr);
+		const char* lblstatus = "Daemon status: ";
+		flabelStatus = new BStringView(BRect(10,600,mainView->StringWidth(lblstatus)+10,625),"lblstatus",lblstatus);
+		const char* daemonstatus = "Not running";
+		fdaemonStatus = new BStringView(BRect(290-mainView->StringWidth(daemonstatus),600,290,625),"daemonStatus",daemonstatus);
+		fdaemonStatus->SetHighColor(255,0,0,255);
+		fdaemonStatus->SetAlignment(B_ALIGN_RIGHT);
+		fLaunchDaemonButton = new BButton(BRect(10, 640, 290, 690), "launchDaemon", "Launch BarGraphDaemon", new BMessage(LAUNCH_DAEMON));
         for (int i = 0; i < fConfig.numBars; i++) {
             BMenu* menu = new BMenu("Select Label");
             //const std::vector<std::string> options = {"1:", "2:", "3:", "4:", "M:", "F1", "F2", "F3", "F4"};
@@ -79,7 +94,15 @@ public:
             BMenuField* menuField = new BMenuField(BRect(10, 30 * i, 300, 30 * (i + 1)), nullptr, lbl.c_str(), menu);
             fBarSettings->AddChild(menuField);
         }
-
+		
+		fSerialPortControl->SetEnabled(false);
+		fBacklightSlider->SetEnabled(false);
+		fConfigLabelsButton->SetEnabled(false);
+		fShowLabelsButton->SetEnabled(false);
+		fResetBSButton->SetEnabled(false);
+		fnumBarsSlider->SetEnabled(false);
+		fBarSettings->Hide();
+		
         // Add everything to main view
         mainView->AddChild(fSerialPortControl);
         mainView->AddChild(fShowLabelsButton);
@@ -90,6 +113,9 @@ public:
 		mainView->AddChild(fConfigLabelsButton);
 		mainView->AddChild(fKillDaemonButton);
 		mainView->AddChild(fshutdownText);
+		mainView->AddChild(flabelStatus);
+		mainView->AddChild(fdaemonStatus);
+		mainView->AddChild(fLaunchDaemonButton);
         AddChild(mainView);
     }
 	
@@ -132,6 +158,7 @@ public:
 	}
 	
 	virtual void MessageReceived(BMessage* message) override {
+		//message->PrintToStream();
 		switch (message->what) {
 			case UPDATE_NUM_BARS:
 				{
@@ -202,6 +229,53 @@ public:
 					message->AddString("path",fSerialPortControl->Text());
 					TransmitToDaemon(message);
 				}
+				break;
+			case DAEMON_STATUS:
+				{
+					bool status = message->FindBool("status");
+					if (prevStat != status) {
+						if (status) {
+							fdaemonStatus->SetText("Running!");
+							fKillDaemonButton->SetEnabled(true);
+							fLaunchDaemonButton->SetEnabled(false);
+							fdaemonStatus->SetHighColor(0,200,0,255);
+							fSerialPortControl->SetEnabled(true);
+							fBacklightSlider->SetEnabled(true);
+							fConfigLabelsButton->SetEnabled(true);
+							fShowLabelsButton->SetEnabled(true);
+							fResetBSButton->SetEnabled(true);
+							fnumBarsSlider->SetEnabled(true);
+							fBarSettings->Show();
+							mainView->Invalidate();
+						} else {
+							fdaemonStatus->SetText("Not running");
+							fKillDaemonButton->SetEnabled(false);
+							fLaunchDaemonButton->SetEnabled(true);
+							fdaemonStatus->SetHighColor(255,0,0,255);
+							fSerialPortControl->SetEnabled(false);
+							fBacklightSlider->SetEnabled(false);
+							fConfigLabelsButton->SetEnabled(false);
+							fShowLabelsButton->SetEnabled(false);
+							fResetBSButton->SetEnabled(false);
+							fnumBarsSlider->SetEnabled(false);
+							fBarSettings->Hide();
+							mainView->Invalidate();
+						}
+						prevStat=status;
+					}
+				}
+				break;
+			/*case DAEMON_PING:
+				{
+					daemonStatus=true;
+					BMessage* msg = new BMessage(DAEMON_STATUS);
+					msg->AddBool("status",true);
+					be_app->WindowAt(0)->PostMessage(msg);
+				}
+				break;*/
+			case LAUNCH_DAEMON:
+				system("/boot/home/Documents/Progjets/bargraph/bargraph/BarGraphDaemon &");
+				break;
 			default:
 				BWindow::MessageReceived(message);
 				break;
@@ -225,8 +299,12 @@ private:
     BView* fBarSettings;
 	BSlider* fnumBarsSlider;
 	BTextControl* fshutdownText;
+	BStringView* flabelStatus;
+	BStringView* fdaemonStatus;
 	std::vector<std::string> fLabels;
+	BButton* fLaunchDaemonButton;
 	
+	bool prevStat=false;
     static const uint32 TOGGLE_LABELS = 'SLAB';
     static const uint32 CHANGE_BACKLIGHT = 'SETB';
     static const uint32 SET_LABEL = 'stlb';
@@ -235,6 +313,8 @@ private:
 	static const uint32 REMOTE_QUIT_REQUEST = '_RQR';
 	static const uint32 RESET_BARS = 'RSBR';
 	static const uint32 SERIAL_PATH = 'SPTH';
+	static const uint32 DAEMON_PING = 'PING';
+	static const uint32 LAUNCH_DAEMON = 'LNCD';
 };
 
 
@@ -242,14 +322,46 @@ class BarGraphPreflet : public BApplication {
 public:
 	BarGraphPreflet()
         : BApplication(kApplicationSignature) {
+			SetPulseRate(1500000);
 			Config config;
 			config = loadConfig();
-			BarGraphPrefletWindow* window = new BarGraphPrefletWindow(config);
-			window->Show();
+			fwindow = new BarGraphPrefletWindow(config);
+			fwindow->Show();
 			//BarGraphPrefletWindow* mainwin = ;
 			//mainwin->Show();
+	}
+	virtual void Pulse() override {
+			if (!daemonStatus) {
+				BMessage* msg = new BMessage(DAEMON_STATUS);
+				msg->AddBool("status",false);
+				be_app->WindowAt(0)->PostMessage(msg);
+			}
+			daemonStatus=false;
+			BMessage* message = new BMessage(DAEMON_PING);
+			BMessenger messenger("application/x-vnd.BarGraphDaemon");
+			messenger.SendMessage(message);
+	}
+	virtual void MessageReceived(BMessage* message) override {
+		//message->PrintToStream();
+		switch (message->what) {
+			case DAEMON_PING:
+				{
+					daemonStatus=true;
+					BMessage* msg = new BMessage(DAEMON_STATUS);
+					msg->AddBool("status",true);
+					//be_app->WindowAt(0)->PostMessage(msg);
+					fwindow->PostMessage(msg);
+				}
+				break;
+			default:
+                BApplication::MessageReceived(message);
+                break;
 		}
+	}
 private:
+	
+	BarGraphPrefletWindow* fwindow;
+
 	Config loadConfig() {
         Config config;
         std::ifstream configFile("/boot/system/settings/bargraph.conf");
@@ -284,6 +396,7 @@ private:
             }
         }
     }
+	static const uint32 DAEMON_PING = 'PING';
 };
 
 int
