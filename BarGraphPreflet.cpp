@@ -60,6 +60,7 @@ public:
         // Backlight
         fBacklightSlider = new BSlider(BRect(10, 100, 290, 125), "Backlight", "Backlight", new BMessage(CHANGE_BACKLIGHT), 0, 100);
         fBacklightSlider->SetValue(fConfig.brightness);
+		fBacklightSlider->SetEnabled(false);
 		fnumBarsSlider = new BSlider(BRect(10, 150, 290, 175),"numBarsSlider", "Number of Bars", new BMessage(UPDATE_NUM_BARS), 1, 8);
 		fnumBarsSlider->SetKeyIncrementValue(1);
 		fnumBarsSlider->SetValue(fConfig.numBars);
@@ -71,7 +72,7 @@ public:
 		fConfigLabelsButton->SetEnabled(false);
 		fKillDaemonButton = new BButton(BRect(10, 492, 290, 532), "killDaemon", "Ask Daemon to Quit", new BMessage(REMOTE_QUIT_REQUEST));
 		fKillDaemonButton->SetEnabled(false);
-		fshutdownText = new BTextControl(BRect(10, 550, 290, 575), "shutdownText", "Shutdown Text:", "", nullptr);
+		fshutdownText = new BTextControl(BRect(10, 550, 290, 575), "shutdownText", "Shutdown Text:", "", new BMessage(SHTDWN_TXT_CHG));
 		const char* lblstatus = "Daemon status: ";
 		flabelStatus = new BStringView(BRect(10,600,mainView->StringWidth(lblstatus)+10,625),"lblstatus",lblstatus);
 		const char* daemonstatus = "Not running";
@@ -160,12 +161,13 @@ public:
 			case UPDATE_NUM_BARS:
 				{
 					int32 newNumBars = fnumBarsSlider->Value();//message->FindInt32("value");
-					if (newNumBars != fConfig.numBars) {
+					UpdateLabelsArray(newNumBars);
+					ResetBarSettings();
+					/*if (newNumBars != fConfig.numBars) {
 						fConfig.numBars = newNumBars;
 						//printf("ora fConfig.numBars è: %d\n", fConfig.numBars);
-						UpdateLabelsArray(newNumBars);
-						ResetBarSettings();
-					}
+						
+					}*/
 				}
 				break;
 			case SET_LABEL:
@@ -180,8 +182,20 @@ public:
 				}
 				break;
 			case REMOTE_QUIT_REQUEST:
-				message->AddString("text",fshutdownText->Text());
-				TransmitToDaemon(message);
+				{
+					const char * sht = fshutdownText->Text();
+					size_t shtSize = strlen(sht);
+					if (shtSize>40) {
+						const size_t maxLength = 40;
+						char truncatedString[maxLength + 1];
+						strncpy(truncatedString, sht, maxLength);
+						truncatedString[maxLength] = '\0';
+						fshutdownText->SetText(truncatedString);
+						sht = truncatedString;
+					}
+					if (shtSize>0)	message->AddString("text",sht);
+					TransmitToDaemon(message);
+				}
 				break;
 			case TOGGLE_LABELS:
 				TransmitToDaemon(message);
@@ -237,6 +251,7 @@ public:
 						if (status) {
 							fdaemonStatus->SetText("Running!");
 							fnumBarsSlider->SetEnabled(true);
+							fBacklightSlider->SetEnabled(true);
 							fKillDaemonButton->SetEnabled(true);
 							fConfigLabelsButton->SetEnabled(true);
 							fShowLabelsButton->SetEnabled(true);
@@ -245,6 +260,7 @@ public:
 						} else {
 							fdaemonStatus->SetText("Not running");
 							fnumBarsSlider->SetEnabled(false);
+							fBacklightSlider->SetEnabled(false);
 							fKillDaemonButton->SetEnabled(false);
 							fConfigLabelsButton->SetEnabled(false);
 							fShowLabelsButton->SetEnabled(false);
@@ -257,6 +273,19 @@ public:
 				break;
 			case LAUNCH_DAEMON:
 				system("/boot/home/Documents/Progjets/bargraph/bargraph/BarGraphDaemon &");
+				break;
+			case SHTDWN_TXT_CHG:
+				{
+					const char * sht = fshutdownText->Text();
+					size_t shtSize = strlen(sht);
+					if (shtSize>40) {
+						const size_t maxLength = 40;
+						char truncatedString[maxLength + 1];
+						strncpy(truncatedString, sht, maxLength);
+						truncatedString[maxLength] = '\0';
+						fshutdownText->SetText(truncatedString);
+					}
+				}
 				break;
 			default:
 				BWindow::MessageReceived(message);
@@ -297,6 +326,7 @@ private:
 	static const uint32 SERIAL_PATH = 'SPTH';
 	static const uint32 DAEMON_PING = 'PING';
 	static const uint32 LAUNCH_DAEMON = 'LNCD';
+	static const uint32 SHTDWN_TXT_CHG = 'SDTC';
 };
 
 
