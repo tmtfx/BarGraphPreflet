@@ -61,8 +61,9 @@ public:
         fBacklightSlider = new BSlider(BRect(10, 100, 290, 125), "Backlight", "Backlight", new BMessage(CHANGE_BACKLIGHT), 0, 100);
         fBacklightSlider->SetValue(fConfig.brightness);
 		fnumBarsSlider = new BSlider(BRect(10, 150, 290, 175),"numBarsSlider", "Number of Bars", new BMessage(UPDATE_NUM_BARS), 1, 8);
-		fnumBarsSlider->SetValue(fConfig.numBars);
 		fnumBarsSlider->SetKeyIncrementValue(1);
+		fnumBarsSlider->SetValue(fConfig.numBars);
+		//printf("initial value: %d\n",fConfig.numBars);
         // Bar Settings
         fBarSettings = new BView(BRect(10, 200, 290, 445), "BarSettings", B_FOLLOW_LEFT | B_FOLLOW_TOP, B_WILL_DRAW);
 		fConfigLabelsButton = new BButton(BRect(10, 450, 290, 490), "configLabels", "Send labels configuration", new BMessage(CONFIGURE_LABELS));
@@ -83,7 +84,7 @@ public:
             //const std::vector<std::string> options = {"1:", "2:", "3:", "4:", "M:", "F1", "F2", "F3", "F4"};
             for (const auto& option : labeloptions) {
 				BMessage* msg = new BMessage(SET_LABEL);
-				msg->AddInt8("index",i);
+				msg->AddInt32("index",i);
 				msg->AddString("label",option.c_str());
                 BMenuItem* item = new BMenuItem(option.c_str(), msg);
                 //item->SetTarget(this);
@@ -119,7 +120,8 @@ public:
 	void UpdateLabelsArray(int newNumBars) {
         fLabels.clear();  // Pulisce l'array
         fLabels.resize(newNumBars, "");  // Ridimensiona in base al nuovo numero di barre
-    }
+		//printf("fLabels è diventato di dimensione: %d\n",fLabels.size());
+    }	
 	
 	void ResetBarSettings(){
 		for (int i = fBarSettings->CountChildren() - 1; i >= 0; --i) {
@@ -128,12 +130,14 @@ public:
 				fBarSettings->RemoveChild(menuField);
 			}
 		}
-		fConfig.numBars = fnumBarsSlider->Value();
-		for (int i = 0; i < fConfig.numBars; i++) {
+		// queste due righe non serve resetbar settings viene chiamato dopo la modifica di fConfig.numBars
+		int newValue = fnumBarsSlider->Value();
+		//fConfig.numBars = newValue;
+		for (int i = 0; i < newValue; i++) {
 			BMenu* menu = new BMenu("Select Label");
 			for (const auto& option : labeloptions) {
 				BMessage* msg = new BMessage(SET_LABEL);
-				msg->AddInt8("index",i);
+				msg->AddInt32("index",i);
 				msg->AddString("label",option.c_str());
 				BMenuItem* item = new BMenuItem(option.c_str(), msg);
 				menu->AddItem(item);
@@ -145,8 +149,8 @@ public:
 		}
 
 		// Ridisegna la finestra
-		fBarSettings->Invalidate();
-		mainView->Invalidate();
+		//fBarSettings->Invalidate();
+		//mainView->Invalidate();
 	}
 	
 	virtual void MessageReceived(BMessage* message) override {
@@ -157,15 +161,15 @@ public:
 					int32 newNumBars = fnumBarsSlider->Value();//message->FindInt32("value");
 					if (newNumBars != fConfig.numBars) {
 						fConfig.numBars = newNumBars;
+						//printf("ora fConfig.numBars è: %d\n", fConfig.numBars);
 						UpdateLabelsArray(newNumBars);
 						ResetBarSettings();
 					}
-					//fprintf(stdout,"new num bars: %d",newNumBars);
 				}
 				break;
 			case SET_LABEL:
 				{
-					int index = message->FindInt8("index");
+					int index = message->FindInt32("index");
 					//fprintf(stdout,"index è %d\n",index);
 					std::string label = message->FindString("label");
 					//fprintf(stdout,"la label è %s\n",label.c_str());
@@ -183,7 +187,7 @@ public:
 				break;
 			case CHANGE_BACKLIGHT:
 				//int val=fBacklightSlider->Value();
-				message->AddInt8("bright",fBacklightSlider->Value());
+				message->AddInt32("bright",fBacklightSlider->Value());
 				TransmitToDaemon(message);
 				break;
 			case RESET_BARS:
@@ -191,21 +195,22 @@ public:
 				break;
 			case CONFIGURE_LABELS:
 				{
-					printf("numbars: %d\n",fConfig.numBars);
-					printf("fLabels size: %d",fLabels.size());
+					int newValue = fnumBarsSlider->Value();
+					
+					//printf("fLabels size: %d",fLabels.size());
 					bool allLabelsAssigned = true;
-					for (int i = 0; i < fConfig.numBars; i++) {
+					for (int i = 0; i < newValue; i++) {
 						if (fLabels[i].empty()) {
 							allLabelsAssigned = false;
 							break;
 						}
 					}
 					if (allLabelsAssigned) {
-						BStringList labelList(fConfig.numBars);
+						BStringList labelList(newValue);
 						for (const std::string& label : fLabels){
 							labelList.Add(BString(label.c_str()));
 						}
-						message->AddInt8("numBars", fConfig.numBars);
+						message->AddInt32("numBars", newValue);
 						message->AddStrings("labels",labelList);
 						/*for (int i = 0; i < fConfig.numBars; i++) {
 							std::string indexStr = std::to_string(i);
@@ -248,7 +253,7 @@ public:
 				}
 				break;
 			case LAUNCH_DAEMON:
-				system("/boot/home/Documents/Progjets/bargraphdaemon/BarGraphDaemon &");
+				system("/boot/home/Documents/Progjets/bargraph/bargraph/BarGraphDaemon &");
 				break;
 			default:
 				BWindow::MessageReceived(message);
