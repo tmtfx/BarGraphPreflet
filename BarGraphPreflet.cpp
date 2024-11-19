@@ -63,6 +63,7 @@ public:
 		fnumBarsSlider = new BSlider(BRect(10, 150, 290, 175),"numBarsSlider", "Number of Bars", new BMessage(UPDATE_NUM_BARS), 1, 8);
 		fnumBarsSlider->SetKeyIncrementValue(1);
 		fnumBarsSlider->SetValue(fConfig.numBars);
+		fnumBarsSlider->SetEnabled(false);
 		//printf("initial value: %d\n",fConfig.numBars);
         // Bar Settings
         fBarSettings = new BView(BRect(10, 200, 290, 445), "BarSettings", B_FOLLOW_LEFT | B_FOLLOW_TOP, B_WILL_DRAW);
@@ -235,6 +236,7 @@ public:
 					if (prevStat != status) {
 						if (status) {
 							fdaemonStatus->SetText("Running!");
+							fnumBarsSlider->SetEnabled(true);
 							fKillDaemonButton->SetEnabled(true);
 							fConfigLabelsButton->SetEnabled(true);
 							fShowLabelsButton->SetEnabled(true);
@@ -242,6 +244,7 @@ public:
 							fdaemonStatus->SetHighColor(0,200,0,255);
 						} else {
 							fdaemonStatus->SetText("Not running");
+							fnumBarsSlider->SetEnabled(false);
 							fKillDaemonButton->SetEnabled(false);
 							fConfigLabelsButton->SetEnabled(false);
 							fShowLabelsButton->SetEnabled(false);
