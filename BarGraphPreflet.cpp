@@ -29,6 +29,7 @@ const char* kApplicationSignature = "application/x-vnd.BarGraph-Preflet";
 const std::vector<std::string> labeloptions = {"1:", "2:", "3:", "4:", "5:", "6:", "7:", "8:", "M:", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"};
 bool daemonStatus = false;
 static const uint32 DAEMON_STATUS = 'DSTS';
+static const uint32 UPDATE_NUM_BARS = 'upnb';
 
 struct Config {
         std::string serialPort;
@@ -37,59 +38,71 @@ struct Config {
 		int brightness;
         std::vector<std::string> labels;
     };
-	
+class BMySlider : public BSlider {
+public:
+    BMySlider(BRect frame, const char* name, const char* label,
+                 BMessage* message, int32 minValue, int32 maxValue, 
+                 thumb_style thumbType = B_BLOCK_THUMB,
+                 uint32 resizingMode = B_FOLLOW_LEFT | B_FOLLOW_TOP)
+        : BSlider(frame, name, label, message, minValue, maxValue, thumbType, resizingMode)
+    {}
+
+    void MouseUp(BPoint where) override {
+        BSlider::MouseUp(where);
+        ExecuteOnMouseUp();
+    }
+
+private:
+    void ExecuteOnMouseUp() {
+        be_app->WindowAt(0)->PostMessage(UPDATE_NUM_BARS);
+    }
+};
+
 class BarGraphPrefletWindow : public BWindow {
 public:
     BarGraphPrefletWindow(Config& config)
-        : BWindow(BRect(100, 100, 400, 800), "Bar Graph Settings", B_TITLED_WINDOW, B_NOT_RESIZABLE),
+        : BWindow(BRect(100, 100, 400, 840), "Bar Graph Settings", B_TITLED_WINDOW, B_NOT_RESIZABLE),
           fConfig(config)
     {
-        // Layout
         mainView = new BView(Bounds(), "MainView", B_FOLLOW_ALL, B_WILL_DRAW);
         mainView->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 
-        // Serial Port
         fSerialPortControl = new BTextControl(BRect(10, 10, 290, 30), "SerialPort", "Serial Port:", fConfig.serialPort.c_str(), new BMessage(SERIAL_PATH));
 		
 		fLabels.resize(fConfig.numBars, "");
-		
-        // Show Labels
+
         fShowLabelsButton = new BButton(BRect(10, 50, 200, 75), "ShowLabels", "Toggle Labels", new BMessage(TOGGLE_LABELS));
 		fShowLabelsButton->SetEnabled(false);
 		fResetBSButton = new BButton(BRect(200, 50, 290, 75), "resetBarSettings", "Reset bars", new BMessage(RESET_BARS));
-        // Backlight
         fBacklightSlider = new BSlider(BRect(10, 100, 290, 125), "Backlight", "Backlight", new BMessage(CHANGE_BACKLIGHT), 0, 100);
         fBacklightSlider->SetValue(fConfig.brightness);
 		fBacklightSlider->SetEnabled(false);
-		fnumBarsSlider = new BSlider(BRect(10, 150, 290, 175),"numBarsSlider", "Number of Bars", new BMessage(UPDATE_NUM_BARS), 1, 8);
+		fnumBarsSlider = new BMySlider(BRect(10, 150, 290, 175),"numBarsSlider", "Number of Bars", new BMessage(UPDATE_NUM_BARS), 1, 8);
 		fnumBarsSlider->SetKeyIncrementValue(1);
 		fnumBarsSlider->SetValue(fConfig.numBars);
 		fnumBarsSlider->SetEnabled(false);
-		//printf("initial value: %d\n",fConfig.numBars);
-        // Bar Settings
-        fBarSettings = new BView(BRect(10, 200, 290, 445), "BarSettings", B_FOLLOW_LEFT | B_FOLLOW_TOP, B_WILL_DRAW);
-		fConfigLabelsButton = new BButton(BRect(10, 450, 290, 490), "configLabels", "Send labels configuration", new BMessage(CONFIGURE_LABELS));
+        fBarSettings = new BView(BRect(10, 240, 290, 485), "BarSettings", B_FOLLOW_LEFT | B_FOLLOW_TOP, B_WILL_DRAW);
+		fConfigLabelsButton = new BButton(BRect(10, 490, 290, 530), "configLabels", "Send labels configuration", new BMessage(CONFIGURE_LABELS));
 		fConfigLabelsButton->SetEnabled(false);
-		fKillDaemonButton = new BButton(BRect(10, 492, 290, 532), "killDaemon", "Ask Daemon to Quit", new BMessage(REMOTE_QUIT_REQUEST));
+		fKillDaemonButton = new BButton(BRect(10, 532, 290, 572), "killDaemon", "Ask Daemon to Quit", new BMessage(REMOTE_QUIT_REQUEST));
 		fKillDaemonButton->SetEnabled(false);
-		fshutdownText = new BTextControl(BRect(10, 550, 290, 575), "shutdownText", "Shutdown Text:", "", new BMessage(SHTDWN_TXT_CHG));
+		fshutdownText = new BTextControl(BRect(10, 580, 290, 625), "shutdownText", "Shutdown Text:", "", new BMessage(SHTDWN_TXT_CHG));
 		const char* lblstatus = "Daemon status: ";
-		flabelStatus = new BStringView(BRect(10,600,mainView->StringWidth(lblstatus)+10,625),"lblstatus",lblstatus);
+		flabelStatus = new BStringView(BRect(10,630,mainView->StringWidth(lblstatus)+10,655),"lblstatus",lblstatus);
 		const char* daemonstatus = "Not running";
-		fdaemonStatus = new BStringView(BRect(290-mainView->StringWidth(daemonstatus),600,290,625),"daemonStatus",daemonstatus);
+		fdaemonStatus = new BStringView(BRect(290-mainView->StringWidth(daemonstatus),630,290,655),"daemonStatus",daemonstatus);
 		fdaemonStatus->SetHighColor(255,0,0,255);
 		fdaemonStatus->SetAlignment(B_ALIGN_RIGHT);
-		fLaunchDaemonButton = new BButton(BRect(10, 640, 290, 690), "launchDaemon", "Launch BarGraphDaemon", new BMessage(LAUNCH_DAEMON));
-		
-        for (int i = 0; i < fConfig.numBars; i++) {
+		fLaunchDaemonButton = new BButton(BRect(10, 680, 290, 730), "launchDaemon", "Launch BarGraphDaemon", new BMessage(LAUNCH_DAEMON));
+		fgraphicCheckBox = new BCheckBox(BRect(10, 200, 290, 230),"graphicEnabler","Fullscreen graphic?",new BMessage(bGRAPHIC));
+		fgraphicCheckBox->SetEnabled(false);
+		for (int i = 0; i < fConfig.numBars; i++) {
             BMenu* menu = new BMenu("Select Label");
-            //const std::vector<std::string> options = {"1:", "2:", "3:", "4:", "M:", "F1", "F2", "F3", "F4"};
             for (const auto& option : labeloptions) {
 				BMessage* msg = new BMessage(SET_LABEL);
 				msg->AddInt32("index",i);
 				msg->AddString("label",option.c_str());
                 BMenuItem* item = new BMenuItem(option.c_str(), msg);
-                //item->SetTarget(this);
                 menu->AddItem(item);
             }
 			menu->SetLabelFromMarked(true);
@@ -98,7 +111,6 @@ public:
             fBarSettings->AddChild(menuField);
         }
 		
-        // Add everything to main view
         mainView->AddChild(fSerialPortControl);
         mainView->AddChild(fShowLabelsButton);
 		mainView->AddChild(fResetBSButton);
@@ -111,6 +123,7 @@ public:
 		mainView->AddChild(flabelStatus);
 		mainView->AddChild(fdaemonStatus);
 		mainView->AddChild(fLaunchDaemonButton);
+		mainView->AddChild(fgraphicCheckBox);
         AddChild(mainView);
     }
 	
@@ -120,21 +133,20 @@ public:
 	}
 	
 	void UpdateLabelsArray(int newNumBars) {
-        fLabels.clear();  // Pulisce l'array
-        fLabels.resize(newNumBars, "");  // Ridimensiona in base al nuovo numero di barre
-		//printf("fLabels è diventato di dimensione: %d\n",fLabels.size());
+        fLabels.clear();
+        fLabels.resize(newNumBars, "");
     }	
 	
 	void ResetBarSettings(){
+	
 		for (int i = fBarSettings->CountChildren() - 1; i >= 0; --i) {
 			BMenuField* menuField = dynamic_cast<BMenuField*>(fBarSettings->ChildAt(i));
 			if (menuField) {
 				fBarSettings->RemoveChild(menuField);
 			}
 		}
-		// queste due righe non serve resetbar settings viene chiamato dopo la modifica di fConfig.numBars
 		int newValue = fnumBarsSlider->Value();
-		//fConfig.numBars = newValue;
+		
 		for (int i = 0; i < newValue; i++) {
 			BMenu* menu = new BMenu("Select Label");
 			for (const auto& option : labeloptions) {
@@ -149,10 +161,6 @@ public:
 			BMenuField* menuField = new BMenuField(BRect(10, 30 * i, 300, 30 * (i + 1)), nullptr, lbl.c_str(), menu);
 			fBarSettings->AddChild(menuField);
 		}
-
-		// Ridisegna la finestra
-		//fBarSettings->Invalidate();
-		//mainView->Invalidate();
 	}
 	
 	virtual void MessageReceived(BMessage* message) override {
@@ -168,16 +176,22 @@ public:
 						//printf("ora fConfig.numBars è: %d\n", fConfig.numBars);
 						
 					}*/
+					printf("New numBars: %s\n",std::to_string(newNumBars).c_str());
+					BRect bsrect = fBarSettings->Bounds();
+					float h = bsrect.Height();
+					if (newNumBars == 1) {
+						fgraphicCheckBox->SetEnabled(true);
+					} else {
+						fgraphicCheckBox->SetEnabled(false);
+					}
 				}
 				break;
 			case SET_LABEL:
 				{
 					int index = message->FindInt32("index");
-					//fprintf(stdout,"index è %d\n",index);
 					std::string label = message->FindString("label");
-					//fprintf(stdout,"la label è %s\n",label.c_str());
 					if (index >= 0 && index < fLabels.size()) {
-						fLabels[index] = label;  // Aggiorna l'etichetta nella posizione corretta
+						fLabels[index] = label;
 					}
 				}
 				break;
@@ -201,7 +215,6 @@ public:
 				TransmitToDaemon(message);
 				break;
 			case CHANGE_BACKLIGHT:
-				//int val=fBacklightSlider->Value();
 				message->AddInt32("bright",fBacklightSlider->Value());
 				TransmitToDaemon(message);
 				break;
@@ -212,7 +225,6 @@ public:
 				{
 					int newValue = fnumBarsSlider->Value();
 					
-					//printf("fLabels size: %d",fLabels.size());
 					bool allLabelsAssigned = true;
 					for (int i = 0; i < newValue; i++) {
 						if (fLabels[i].empty()) {
@@ -231,7 +243,13 @@ public:
 							std::string indexStr = std::to_string(i);
 							message->AddStrings(indexStr.c_str(), fLabels[i].c_str());
 						}*/
+						
 						TransmitToDaemon(message);
+						if (newValue == 1) {
+							BMessage* graphicmode = new BMessage(SPECIAL_GRAPH);
+							graphicmode->AddBool("graphicMode", bgraph);
+							TransmitToDaemon(graphicmode);
+						}
 					} else {
 						BAlert* alert = new BAlert("error","You must assign all labels first!", "OK", nullptr,nullptr,B_WIDTH_AS_USUAL,B_WARNING_ALERT);
 						alert->Go();
@@ -287,6 +305,11 @@ public:
 					}
 				}
 				break;
+			case bGRAPHIC:
+				{
+					bgraph = fgraphicCheckBox->Value();
+				}
+				break;
 			default:
 				BWindow::MessageReceived(message);
 				break;
@@ -308,18 +331,19 @@ private:
 	BButton* fKillDaemonButton;
     BSlider* fBacklightSlider;
     BView* fBarSettings;
-	BSlider* fnumBarsSlider;
+	BMySlider* fnumBarsSlider;
 	BTextControl* fshutdownText;
 	BStringView* flabelStatus;
 	BStringView* fdaemonStatus;
 	std::vector<std::string> fLabels;
 	BButton* fLaunchDaemonButton;
+	BCheckBox* fgraphicCheckBox;
 	
+	bool bgraph=false;
 	bool prevStat=false;
     static const uint32 TOGGLE_LABELS = 'SLAB';
     static const uint32 CHANGE_BACKLIGHT = 'SETB';
     static const uint32 SET_LABEL = 'stlb';
-	static const uint32 UPDATE_NUM_BARS = 'upnb';
 	static const uint32 CONFIGURE_LABELS = 'SCFG';
 	static const uint32 REMOTE_QUIT_REQUEST = '_RQR';
 	static const uint32 RESET_BARS = 'RSBR';
@@ -327,6 +351,8 @@ private:
 	static const uint32 DAEMON_PING = 'PING';
 	static const uint32 LAUNCH_DAEMON = 'LNCD';
 	static const uint32 SHTDWN_TXT_CHG = 'SDTC';
+	static const uint32 bGRAPHIC = 'TOGG';
+	static const uint32 SPECIAL_GRAPH = 'GRPH';
 };
 
 
@@ -339,8 +365,6 @@ public:
 			config = loadConfig();
 			fwindow = new BarGraphPrefletWindow(config);
 			fwindow->Show();
-			//BarGraphPrefletWindow* mainwin = ;
-			//mainwin->Show();
 	}
 	virtual void Pulse() override {
 			if (!daemonStatus) {
@@ -361,7 +385,6 @@ public:
 					daemonStatus=true;
 					BMessage* msg = new BMessage(DAEMON_STATUS);
 					msg->AddBool("status",true);
-					//be_app->WindowAt(0)->PostMessage(msg);
 					fwindow->PostMessage(msg);
 				}
 				break;
@@ -392,8 +415,8 @@ private:
             config.showLabels = true;
             config.numBars = 8;
 			config.brightness = 80;
-            config.labels = {"1:", "2:", "3:", "4:","F1", "F2", "F3", "F4"}; //implementata M: e F1,F2,Fx
-            saveConfig(config);  // Salva la configurazione di default
+            config.labels = {"1:", "2:", "3:", "4:","F1", "F2", "F3", "F4"};
+            saveConfig(config);
         }
 
         return config;
